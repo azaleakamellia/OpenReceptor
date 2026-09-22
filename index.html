@@ -7,7 +7,6 @@
     
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
@@ -20,13 +19,12 @@
         }
         body { margin: 0; padding: 0; font-family: 'Inter', sans-serif; display: flex; height: 100vh; color: var(--text-dark); }
         
-        /* Sidebar Styling */
         #sidebar { 
             width: 320px; background: white; border-right: 1px solid var(--border); 
             display: flex; flex-direction: column; z-index: 1000; box-shadow: 2px 0 10px rgba(0,0,0,0.05); 
         }
         .sidebar-header { padding: 20px; border-bottom: 1px solid var(--border); background: var(--bg-light); }
-        .sidebar-header h1 { margin: 0; font-size: 1.2rem; color: var(--primary-dark); display: flex; align-items: center; gap: 8px; }
+        .sidebar-header h1 { margin: 0; font-size: 1.2rem; color: var(--primary-dark); }
         .sidebar-header p { margin: 5px 0 0 0; font-size: 0.8rem; color: #666; }
         
         .sidebar-content { flex: 1; overflow-y: auto; padding: 20px; }
@@ -47,19 +45,31 @@
         
         .status-box { 
             margin-top: 20px; padding: 10px; border-radius: 6px; font-size: 0.85rem; 
-            background: #E8F5E9; color: var(--primary-dark); display: block; 
+            background: #E8F5E9; color: var(--primary-dark); 
         }
         
         .sidebar-footer { padding: 15px 20px; border-top: 1px solid var(--border); font-size: 0.75rem; color: #888; text-align: center; }
         .sidebar-footer a { color: var(--primary); text-decoration: none; }
 
-        /* Map Styling */
         #map { flex-grow: 1; height: 100%; }
+        
+        /* Custom marker styles for better visibility */
+        .social-marker {
+            background-color: #E53935;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        .env-marker {
+            background-color: #1B5E20;
+            border: 2px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
     </style>
 </head>
 <body>
 
-    <!-- Sidebar -->
     <div id="sidebar">
         <div class="sidebar-header">
             <h1>🌍 OpenReceptor</h1>
@@ -67,25 +77,38 @@
         </div>
         
         <div class="sidebar-content">
-            <div class="section-title">1. Social & Anthropogenic Receptors</div>
+            <div class="section-title">1. SOCIAL & ANTHROPOGENIC RECEPTORS</div>
             <div class="control-group">
-                <label class="checkbox-label"><input type="checkbox" id="chk-hospitals" checked> Hospitals & Clinics</label>
-                <label class="checkbox-label"><input type="checkbox" id="chk-schools" checked> Schools & Universities</label>
-                <label class="checkbox-label"><input type="checkbox" id="chk-worship" checked> Places of Worship</label>
-                <label class="checkbox-label"><input type="checkbox" id="chk-residential"> Residential Areas</label>
+                <label class="checkbox-label"><input type="checkbox" id="chk-hospitals" checked> 🏥 Hospitals & Clinics</label>
+                <label class="checkbox-label"><input type="checkbox" id="chk-schools" checked>  Schools & Universities</label>
+                <label class="checkbox-label"><input type="checkbox" id="chk-worship" checked> ⛪ Places of Worship</label>
+                <label class="checkbox-label"><input type="checkbox" id="chk-residential"> 🏘️ Residential Areas</label>
             </div>
 
-            <div class="section-title">2. Environmental & Ecological Receptors</div>
+            <div class="section-title">2. ENVIRONMENTAL & ECOLOGICAL RECEPTORS</div>
             <div class="control-group">
-                <label class="checkbox-label"><input type="checkbox" id="chk-protected" checked> Protected Areas (WDPA/OSM)</label>
-                <label class="checkbox-label"><input type="checkbox" id="chk-water" checked> Water Bodies & Wetlands</label>
+                <label class="checkbox-label"><input type="checkbox" id="chk-protected" checked> 🌳 Protected Areas</label>
+                <label class="checkbox-label"><input type="checkbox" id="chk-water" checked> 💧 Water Bodies</label>
             </div>
 
             <button class="btn btn-primary" onclick="fetchReceptors()">🔄 Update Map to Current View</button>
             <button class="btn btn-secondary" onclick="exportData()">⬇️ Export Receptors (GeoJSON)</button>
             
             <div id="status-box" class="status-box">
-                💡 <strong>Tip:</strong> Zoom in to a specific town or project area (Zoom 10+) before clicking "Update Map" to avoid API timeouts.
+                 <strong>Tip:</strong> Zoom in to a specific area (Zoom 12+) before clicking "Update Map".
+            </div>
+            
+            <!-- Legend -->
+            <div style="margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 6px;">
+                <div style="font-weight: 600; margin-bottom: 8px; font-size: 0.85rem;">Legend:</div>
+                <div style="display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 0.85rem;">
+                    <div style="width: 12px; height: 12px; background: #E53935; border-radius: 50%; border: 2px solid white;"></div>
+                    <span>Social Receptors</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 0.85rem;">
+                    <div style="width: 12px; height: 12px; background: #1B5E20; border-radius: 50%; border: 2px solid white;"></div>
+                    <span>Environmental Receptors</span>
+                </div>
             </div>
         </div>
 
@@ -95,144 +118,166 @@
         </div>
     </div>
 
-    <!-- Map Container -->
     <div id="map"></div>
 
-    <!-- Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/osmtogeojson@3.0.0-beta.5/osmtogeojson.js"></script>
 
     <script>
-        // 1. Initialize Map (Centered on Sarawak/Malaysia by default)
-        const map = L.map('map').setView([1.55, 110.35], 8);
+        // Initialize Map
+        const map = L.map('map').setView([1.55, 110.35], 12);
 
         // Base Layers
-        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors', maxZoom: 19
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap', maxZoom: 19
         }).addTo(map);
 
-        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '© Esri', maxZoom: 19
         });
 
-        L.control.layers({ "OpenStreetMap": osm, "Satellite": satellite }).addTo(map);
-
-        // Layer Groups for Receptors (WITH POPUPS ADDED)
-        const socialLayer = L.geoJSON(null, {
-            style: { color: '#E53935', weight: 1, fillOpacity: 0.2 },
-            pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 6, color: '#ffffff', fillColor: '#E53935', fillOpacity: 0.9, weight: 2 }),
-            onEachFeature: (feature, layer) => {
-                const name = feature.properties.name || feature.properties.amenity || 'Receptor';
-                layer.bindPopup(`<b>${name}</b><br>Type: ${feature.properties.amenity || feature.properties.landuse || 'N/A'}`);
-            }
+        // Layer control
+        L.control.layers({
+            "OpenStreetMap": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+            "Satellite": L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}')
         }).addTo(map);
 
-        const envLayer = L.geoJSON(null, {
-            style: { color: '#1B5E20', weight: 2, fillOpacity: 0.2 },
-            pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 6, color: '#ffffff', fillColor: '#1B5E20', fillOpacity: 0.9, weight: 2 }),
-            onEachFeature: (feature, layer) => {
-                const name = feature.properties.name || feature.properties.natural || feature.properties.boundary || 'Receptor';
-                layer.bindPopup(`<b>${name}</b><br>Type: ${feature.properties.natural || feature.properties.waterway || feature.properties.boundary || 'N/A'}`);
-            }
-        }).addTo(map);
+        // Feature groups for markers
+        const socialMarkers = L.layerGroup().addTo(map);
+        const envMarkers = L.layerGroup().addTo(map);
 
         let currentData = { type: 'FeatureCollection', features: [] };
 
-        // 2. Core Function: Fetch Data from Overpass API
         async function fetchReceptors() {
             const statusBox = document.getElementById('status-box');
-            statusBox.textContent = '⏳ Querying Overpass API... Please wait.';
+            statusBox.textContent = '⏳ Querying... Please wait.';
             statusBox.style.background = '#FFF3E0';
             statusBox.style.color = '#E65100';
 
-            socialLayer.clearLayers();
-            envLayer.clearLayers();
+            socialMarkers.clearLayers();
+            envMarkers.clearLayers();
             currentData = { type: 'FeatureCollection', features: [] };
 
-            // PREVENT MASSIVE AREA TIMEOUTS
             const zoom = map.getZoom();
             if (zoom < 10) {
-                statusBox.textContent = '⚠️ Please zoom in closer (Zoom level 10+) to search. Querying an entire state will timeout the API.';
-                statusBox.style.background = '#FFF3E0';
-                statusBox.style.color = '#E65100';
+                statusBox.textContent = '⚠️ Please zoom in closer (Zoom 10+) to search.';
                 return;
             }
 
             const bounds = map.getBounds();
             const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
-            let overpassQuery = `[out:json][timeout:30];(\n`;
+            let query = `[out:json][timeout:30];(\n`;
             
-            // Social Receptors
-            if (document.getElementById('chk-hospitals').checked) overpassQuery += `node["amenity"="hospital"](${bbox}); node["amenity"="clinic"](${bbox});\n`;
-            if (document.getElementById('chk-schools').checked) overpassQuery += `node["amenity"="school"](${bbox}); node["amenity"="university"](${bbox});\n`;
-            if (document.getElementById('chk-worship').checked) overpassQuery += `node["amenity"="place_of_worship"](${bbox});\n`;
-            if (document.getElementById('chk-residential').checked) overpassQuery += `way["landuse"="residential"](${bbox});\n`;
+            if (document.getElementById('chk-hospitals').checked) {
+                query += `node["amenity"="hospital"](${bbox}); node["amenity"="clinic"](${bbox});\n`;
+            }
+            if (document.getElementById('chk-schools').checked) {
+                query += `node["amenity"="school"](${bbox}); node["amenity"="university"](${bbox});\n`;
+            }
+            if (document.getElementById('chk-worship').checked) {
+                query += `node["amenity"="place_of_worship"](${bbox});\n`;
+            }
+            if (document.getElementById('chk-residential').checked) {
+                query += `way["landuse"="residential"](${bbox});\n`;
+            }
+            if (document.getElementById('chk-protected').checked) {
+                query += `relation["boundary"="protected_area"](${bbox});\n`;
+            }
+            if (document.getElementById('chk-water').checked) {
+                query += `way["natural"="water"](${bbox}); way["waterway"="river"](${bbox});\n`;
+            }
             
-            // Environmental Receptors
-            if (document.getElementById('chk-protected').checked) overpassQuery += `relation["boundary"="protected_area"](${bbox});\n`;
-            if (document.getElementById('chk-water').checked) overpassQuery += `way["natural"="water"](${bbox}); way["waterway"="river"](${bbox});\n`;
-            
-            overpassQuery += `);\nout body;>;out skel qt;`;
+            query += `);\nout body;>;out skel qt;`;
 
             try {
                 const response = await fetch('https://overpass-api.de/api/interpreter', {
                     method: 'POST',
-                    body: overpassQuery
+                    body: query
                 });
                 
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                
                 const data = await response.json();
-                const geojson = osmtogeojson(data);
-                
                 let socialCount = 0;
                 let envCount = 0;
 
-                // Separate into social and environmental layers based on tags
-                geojson.features.forEach(feature => {
-                    const tags = feature.properties || {};
-                    const isSocial = tags.amenity || tags.landuse === 'residential';
-                    const isEnv = tags.boundary === 'protected_area' || tags.natural === 'water' || tags.waterway;
+                // Process nodes (points)
+                if (data.elements) {
+                    data.elements.forEach(element => {
+                        if (element.type === 'node' && element.lat && element.lon) {
+                            const tags = element.tags || {};
+                            const latlng = [element.lat, element.lon];
+                            
+                            let name = tags.name || tags.amenity || 'Receptor';
+                            let type = tags.amenity || tags.natural || tags.landuse || 'Unknown';
+                            
+                            // Determine if social or environmental
+                            const isSocial = tags.amenity || tags.landuse === 'residential';
+                            const isEnv = tags.boundary === 'protected_area' || tags.natural === 'water' || tags.waterway;
 
-                    if (isSocial) {
-                        feature.properties.layer = 'social';
-                        socialLayer.addData(feature);
-                        socialCount++;
-                    }
-                    if (isEnv) {
-                        feature.properties.layer = 'environmental';
-                        envLayer.addData(feature);
-                        envCount++;
-                    }
-                    currentData.features.push(feature);
-                });
+                            if (isSocial) {
+                                const marker = L.circleMarker(latlng, {
+                                    radius: 8,
+                                    fillColor: '#E53935',
+                                    color: 'white',
+                                    weight: 2,
+                                    opacity: 1,
+                                    fillOpacity: 0.9
+                                }).bindPopup(`<b>${name}</b><br>Type: ${type}`);
+                                
+                                socialMarkers.addLayer(marker);
+                                socialCount++;
+                                
+                                currentData.features.push({
+                                    type: 'Feature',
+                                    geometry: { type: 'Point', coordinates: [element.lon, element.lat] },
+                                    properties: { name: name, type: type, category: 'social' }
+                                });
+                            }
+                            
+                            if (isEnv) {
+                                const marker = L.circleMarker(latlng, {
+                                    radius: 8,
+                                    fillColor: '#1B5E20',
+                                    color: 'white',
+                                    weight: 2,
+                                    opacity: 1,
+                                    fillOpacity: 0.9
+                                }).bindPopup(`<b>${name}</b><br>Type: ${type}`);
+                                
+                                envMarkers.addLayer(marker);
+                                envCount++;
+                                
+                                currentData.features.push({
+                                    type: 'Feature',
+                                    geometry: { type: 'Point', coordinates: [element.lon, element.lat] },
+                                    properties: { name: name, type: type, category: 'environmental' }
+                                });
+                            }
+                        }
+                    });
+                }
 
-                statusBox.textContent = `✅ Success! Found ${socialCount} social and ${envCount} environmental receptors.`;
+                statusBox.textContent = `✅ Found ${socialCount} social + ${envCount} environmental receptors`;
                 statusBox.style.background = '#E8F5E9';
                 statusBox.style.color = '#1B5E20';
 
             } catch (error) {
-                statusBox.textContent = '❌ Error fetching data. Try zooming in closer or unchecking some categories.';
+                statusBox.textContent = '❌ Error fetching data. Try zooming in closer.';
                 statusBox.style.background = '#FFEBEE';
                 statusBox.style.color = '#C62828';
-                console.error("Overpass API Error:", error);
+                console.error(error);
             }
         }
 
-        // 3. Export Function
         function exportData() {
             if (currentData.features.length === 0) {
-                alert('No data to export. Please run "Update Map" first.');
+                alert('No data to export. Run "Update Map" first.');
                 return;
             }
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", "openreceptor_export.geojson");
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(currentData, null, 2));
+            const link = document.createElement('a');
+            link.href = dataStr;
+            link.download = "openreceptor_export.geojson";
+            link.click();
         }
     </script>
 </body>
