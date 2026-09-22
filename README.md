@@ -1,39 +1,47 @@
-# Tropical Forest EO Methodology Framework
+# Tropical Forest Cover EO Methodology: Borneo Case Study
 
-A reproducible methodology for applied vegetation remote sensing in tropical environments, designed for natural capital applications and environmental baseline assessments.
+**Author:** Azalea Kamellia Abdullah, Gs.  
+**Domain:** Applied Vegetation Remote Sensing, Tropical Forest Environments, Natural Capital  
 
-## 🌍 Context
-Tropical forest monitoring requires robust handling of persistent cloud cover, phenological variations, and multi-sensor data fusion. This repository outlines a standardized workflow using Google Earth Engine (GEE) and Python to derive reliable vegetation indices (NDVI/EVI) and detect land-use change.
+## Project Overview
+This repository documents the methodological framework and code architecture used for large-scale tropical forest cover mapping and land-use change detection in Borneo. Originally developed during my tenure leading the Conservation GIS Unit at WWF-Malaysia, this methodology contributed directly to the **Malaysia Forest Cover 2020 Dashboard** and subsequent peer-reviewed publications.
 
-## 🛠️ Methodology Components
-1. **Multi-Sensor Harmonization:** Combining Landsat 8/9 and Sentinel-2 surface reflectance.
-2. **Advanced Cloud & Shadow Masking:** Utilizing the `s2cloudless` algorithm and QA bands to ensure pixel-level integrity in high-precipitation zones.
-3. **Time-Series Smoothing:** Applying Whittaker or Savitzky-Golay filters to reconstruct continuous vegetation trajectories.
-4. **Change Detection:** Implementing Continuous Change Detection and Classification (CCDC) or breakpoint analysis for deforestation/degradation alerts.
+This work is highly applicable to commercial natural capital applications, providing a robust, reproducible pipeline for assessing forest extent, degradation, and regeneration using multi-temporal satellite imagery.
 
-## 💻 Representative Code Snippet (GEE Python API)
-```python
-import ee
-ee.Initialize()
+## Methodological Framework
 
-def mask_s2_clouds(image):
-    """Masks clouds and cloud shadows in a Sentinel-2 image."""
-    qa = image.select('QA60')
-    cloud_bit_mask = 1 << 10
-    cirrus_bit_mask = 1 << 11
-    mask = qa.bitwiseAnd(cloud_bit_mask).eq(0).And(qa.bitwiseAnd(cirrus_bit_mask).eq(0))
-    return image.updateMask(mask).divide(10000).select(['B2', 'B3', 'B4', 'B8', 'B11', 'B12'], 
-                                                       ['blue', 'green', 'red', 'nir', 'swir1', 'swir2'])
+### 1. Data Acquisition & Preprocessing
+- **Primary Data Sources:** Landsat 5/7/8/9 and Sentinel-2 time-series imagery via Google Earth Engine (GEE).
+- **Preprocessing:** Automated cloud and shadow masking (using QA bands and Fmask algorithms), atmospheric correction, and harmonization across sensor generations to ensure consistent temporal analysis.
 
-# Define Area of Interest (e.g., Sarawak, Malaysia)
-aoi = ee.Geometry.Rectangle([109.5, 1.0, 115.0, 5.0])
+### 2. Feature Engineering & Spectral Indices
+- Calculation of key vegetation and moisture indices to enhance class separability in tropical environments:
+  - NDVI (Normalized Difference Vegetation Index)
+  - EVI (Enhanced Vegetation Index)
+  - NBR (Normalized Burn Ratio) for disturbance detection
+  - Tasseled Cap transformations (Brightness, Greenness, Wetness)
 
-# Load Sentinel-2, apply masking, and calculate NDVI
-collection = (ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED')
-              .filterBounds(aoi)
-              .filterDate('2023-01-01', '2023-12-31')
-              .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 20))
-              .map(mask_s2_clouds)
-              .map(lambda img: img.addBands(img.normalizedDifference(['nir', 'red']).rename('NDVI'))))
+### 3. Machine Learning Classification
+- **Algorithm:** Random Forest and Gradient Boosting (XGBoost) classifiers, chosen for their robustness to noisy, high-dimensional remote sensing data.
+- **Training Data:** Stratified random sampling of reference points, validated against high-resolution basemaps and field knowledge.
+- **Output:** Continuous forest cover probability maps and discrete land-cover classifications (e.g., Primary Forest, Degraded Forest, Agriculture, Water).
 
-median_ndvi = collection.select('NDVI').median()
+### 4. Accuracy Assessment & Validation
+- Generation of error matrices (Confusion Matrices).
+- Calculation of Overall Accuracy, Producer’s/User’s Accuracy, and Kappa/F1-Scores to ensure the methodology meets commercial and scientific rigor standards.
+
+## Relevance to Natural Capital Applications
+This pipeline provides the foundational geospatial intelligence required for:
+- Baseline forest carbon stock estimation.
+- Monitoring deforestation and degradation (REDD+ applications).
+- Biodiversity habitat connectivity modeling.
+- ESG and TCFD physical risk reporting for assets in tropical regions.
+
+## Publications & Outputs
+- **Md Reba, M. N., Abdullah, A. K., et al. (2025).** Evaluating satellite gridded precipitation errors in the Sungai Sarawak basin: A triple collocation approach. *Proceedings of ACRS 2025*.
+- **Abdullah, A. K., et al. (2021).** Deep forest cover classification of consecutive Landsat imageries over Borneo. *Warta Geologi Newsletter*, 47(1), 71.
+
+## Contact & Collaboration
+For inquiries regarding the adaptation of this methodology for commercial natural capital projects, please visit my portfolio:  
+🌐 [azaleakamellia.github.io](https://azaleakamellia.github.io)  
+✉️ [azaleakamellia.a@gmail.com](mailto:azaleakamellia.a@gmail.com)
