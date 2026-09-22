@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenReceptor: Sensitive Receptor Detection</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; height: 100vh; }
+        #sidebar { width: 300px; background: #f8f9fa; padding: 20px; box-shadow: 2px 0 5px rgba(0,0,0,0.1); z-index: 1000; overflow-y: auto; }
+        #map { flex-grow: 1; height: 100%; }
+        h2 { margin-top: 0; color: #2c3e50; font-size: 1.2rem; }
+        .layer-control { margin-bottom: 15px; padding: 10px; background: white; border-radius: 5px; border: 1px solid #ddd; }
+        .layer-control label { display: block; margin-bottom: 5px; cursor: pointer; font-size: 0.9rem; }
+        .btn { width: 100%; padding: 10px; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+        .btn:hover { background: #219150; }
+        .info-box { font-size: 0.85rem; color: #555; margin-top: 20px; line-height: 1.4; }
+        .loading { display: none; color: #e67e22; font-weight: bold; margin-top: 10px; }
+    </style>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h2>🌍 OpenReceptor</h2>
+        <p style="font-size: 0.9rem; color: #666;">Dynamic sensitive receptor detection for ESIA, TNFD, and ADB reporting.</p>
+        
+        <div class="layer-control">
+            <strong>Social Receptors (Live OSM)</strong>
+            <label><input type="checkbox" id="chk-hospitals" checked> Hospitals & Clinics</label>
+            <label><input type="checkbox" id="chk-schools" checked> Schools & Universities</label>
+            <label><input type="checkbox" id="chk-worship" checked> Places of Worship</label>
+            <label><input type="checkbox" id="chk-residential" checked> Residential Areas</label>
+        </div>
+
+        <div class="layer-control">
+            <strong>Environmental Receptors (GEE/WDPA)</strong>
+            <label><input type="checkbox" id="chk-protected" checked> Protected Areas (WDPA)</label>
+        </div>
+
+        <button class="btn" onclick="fetchReceptors()">🔄 Update Map to Current View</button>
+        <div id="loading" class="loading">Querying Overpass API...</div>
+
+        <div class="info-box">
+            <strong>How it works:</strong><br>
+            Pan and zoom the map to your Area of Interest (AOI), then click "Update Map". The tool live-queries OpenStreetMap via the Overpass API to extract sensitive receptors within the current map bounds.
+        </div>
+        <div class="info-box" style="margin-top: 30px; border-top: 1px solid #ccc; padding-top: 10px;">
+            Developed by:<br>
+            <strong>Azalea Kamellia Abdullah, Gs.</strong><br>
+            <a href="https://azaleakamellia.github.io" target="_blank" style="color: #27ae60;">azaleakamellia.github.io</a>
+        </div
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+        // Initialize Map (Centered on Borneo/Malaysia by default)
+        const map = L.map('map').setView([1.5, 110.0], 8);
+
+        // Base Layers
+        const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri'
+        });
+
+        L.control.layers({ "OpenStreetMap": osm, "Satellite": satellite }).addTo(map);
+
+        // Layer Groups
+        const socialLayer = L.layerGroup().addTo(map);
+        const envLayer = L.layerGroup().addTo(map);
+
+        async function fetchReceptors() {
+            document.getElementById('loading').style.display = 'block';
+            socialLayer.clearLayers();
+            envLayer.clearLayers();
+
+            const bounds = map.getBounds();
+            const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+
+            let overpassQuery = `[out:json][timeout:25];(\n`;
+            if (document.getElementById('chk-hospitals').checked) overpassQuery += `node["amenity"="hospital"](${bbox}); node["amenity"="clinic"](${bbox});\n`;
+            if (document.getElementById('chk-schools').checked) overpassQuery += `node["amenity"="school"](${bbox}); node["amenity"="university"](${bbox});\n`;
+            if (document.getElementById('chk-worship').checked) overpassQuery += `node["amenity"="place_of_worship"](${bbox});\n`;
+            if (document.getElementById('chk-residential').checked) overpassQuery += `way["landuse"="residential"](${bbox});\n`;
+            overpassQuery += `);\nout body;`;
+
+            try {
+                const response = await fetch('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    body: overpassQuery
+                });
+                const data = await response.json();
+
+                data.elements.forEach(el => {
+                    if (el.type === 'node' && el.lat && el.lon) {
+                        const name = el.tags.name || el.tags.amenity || 'Receptor';
+                        const color = el.tags.amenity === 'hospital' || el.tags.amenity === 'clinic' ? 'red' : 
+                                      el.tags.amenity === 'school' || el.tags.amenity === 'university' ? 'blue' : 'orange';
+                        
+                        L.circleMarker([el.lat, el.lon], {
+                            radius: 6,
+                            fillColor: color,
+                            color: '#fff',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        }).bindPopup(`<b>${name}</b><br>Type: ${el.tags.amenity}`).addTo(socialLayer);
+                    }
+                });
+
+                // Mock Environmental Receptor (In production, this would be a GEE WDPA query)
+                // For this demo, we add a mock protected area polygon based on map center
+                const center = map.getCenter();
+                L.polygon([
+                    [center.lat + 0.1, center.lng - 0.1],
+                    [center.lat + 0.1, center.lng + 0.1],
+                    [center.lat - 0.1, center.lng + 0.1],
+                    [center.lat - 0.1, center.lng - 0.1]
+                ], { color: 'green', fillColor: '#0f0', fillOpacity: 0.3 })
+                .bindPopup("<b>Mock Protected Area</b><br>(WDPA Integration via GEE)").addTo(envLayer);
+
+            } catch (error) {
+                alert("Error fetching data from Overpass API. Please try again.");
+                console.error(error);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Initial fetch
+        fetchReceptors();
+    </script>
+</body>
+</html>
