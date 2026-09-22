@@ -47,7 +47,7 @@
         
         .status-box { 
             margin-top: 20px; padding: 10px; border-radius: 6px; font-size: 0.85rem; 
-            background: #E8F5E9; color: var(--primary-dark); display: none; 
+            background: #E8F5E9; color: var(--primary-dark); display: block; 
         }
         
         .sidebar-footer { padding: 15px 20px; border-top: 1px solid var(--border); font-size: 0.75rem; color: #888; text-align: center; }
@@ -55,9 +55,6 @@
 
         /* Map Styling */
         #map { flex-grow: 1; height: 100%; }
-        
-        /* Custom Marker Styles */
-        .custom-marker { border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
     </style>
 </head>
 <body>
@@ -84,10 +81,12 @@
                 <label class="checkbox-label"><input type="checkbox" id="chk-water" checked> Water Bodies & Wetlands</label>
             </div>
 
-            <button class="btn btn-primary" onclick="fetchReceptors()"> Update Map to Current View</button>
+            <button class="btn btn-primary" onclick="fetchReceptors()">🔄 Update Map to Current View</button>
             <button class="btn btn-secondary" onclick="exportData()">⬇️ Export Receptors (GeoJSON)</button>
             
-            <div id="status-box" class="status-box"></div>
+            <div id="status-box" class="status-box">
+                💡 <strong>Tip:</strong> Zoom in to a specific town or project area (Zoom 10+) before clicking "Update Map" to avoid API timeouts.
+            </div>
         </div>
 
         <div class="sidebar-footer">
@@ -105,7 +104,7 @@
 
     <script>
         // 1. Initialize Map (Centered on Sarawak/Malaysia by default)
-        const map = L.map('map').setView([1.5, 110.0], 8);
+        const map = L.map('map').setView([1.55, 110.35], 8);
 
         // Base Layers
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -118,15 +117,23 @@
 
         L.control.layers({ "OpenStreetMap": osm, "Satellite": satellite }).addTo(map);
 
-        // Layer Groups for Receptors
+        // Layer Groups for Receptors (WITH POPUPS ADDED)
         const socialLayer = L.geoJSON(null, {
             style: { color: '#E53935', weight: 1, fillOpacity: 0.2 },
-            pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 5, color: '#E53935', fillColor: '#E53935', fillOpacity: 0.8 })
+            pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 6, color: '#ffffff', fillColor: '#E53935', fillOpacity: 0.9, weight: 2 }),
+            onEachFeature: (feature, layer) => {
+                const name = feature.properties.name || feature.properties.amenity || 'Receptor';
+                layer.bindPopup(`<b>${name}</b><br>Type: ${feature.properties.amenity || feature.properties.landuse || 'N/A'}`);
+            }
         }).addTo(map);
 
         const envLayer = L.geoJSON(null, {
             style: { color: '#1B5E20', weight: 2, fillOpacity: 0.2 },
-            pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 6, color: '#1B5E20', fillColor: '#1B5E20', fillOpacity: 0.8 })
+            pointToLayer: (feature, latlng) => L.circleMarker(latlng, { radius: 6, color: '#ffffff', fillColor: '#1B5E20', fillOpacity: 0.9, weight: 2 }),
+            onEachFeature: (feature, layer) => {
+                const name = feature.properties.name || feature.properties.natural || feature.properties.boundary || 'Receptor';
+                layer.bindPopup(`<b>${name}</b><br>Type: ${feature.properties.natural || feature.properties.waterway || feature.properties.boundary || 'N/A'}`);
+            }
         }).addTo(map);
 
         let currentData = { type: 'FeatureCollection', features: [] };
@@ -134,7 +141,6 @@
         // 2. Core Function: Fetch Data from Overpass API
         async function fetchReceptors() {
             const statusBox = document.getElementById('status-box');
-            statusBox.style.display = 'block';
             statusBox.textContent = '⏳ Querying Overpass API... Please wait.';
             statusBox.style.background = '#FFF3E0';
             statusBox.style.color = '#E65100';
@@ -143,10 +149,19 @@
             envLayer.clearLayers();
             currentData = { type: 'FeatureCollection', features: [] };
 
+            // PREVENT MASSIVE AREA TIMEOUTS
+            const zoom = map.getZoom();
+            if (zoom < 10) {
+                statusBox.textContent = '⚠️ Please zoom in closer (Zoom level 10+) to search. Querying an entire state will timeout the API.';
+                statusBox.style.background = '#FFF3E0';
+                statusBox.style.color = '#E65100';
+                return;
+            }
+
             const bounds = map.getBounds();
             const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
 
-            let overpassQuery = `[out:json][timeout:25];(\n`;
+            let overpassQuery = `[out:json][timeout:30];(\n`;
             
             // Social Receptors
             if (document.getElementById('chk-hospitals').checked) overpassQuery += `node["amenity"="hospital"](${bbox}); node["amenity"="clinic"](${bbox});\n`;
@@ -165,35 +180,43 @@
                     method: 'POST',
                     body: overpassQuery
                 });
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
                 const data = await response.json();
                 const geojson = osmtogeojson(data);
                 
+                let socialCount = 0;
+                let envCount = 0;
+
                 // Separate into social and environmental layers based on tags
                 geojson.features.forEach(feature => {
-                    const tags = feature.properties.tags || {};
+                    const tags = feature.properties || {};
                     const isSocial = tags.amenity || tags.landuse === 'residential';
                     const isEnv = tags.boundary === 'protected_area' || tags.natural === 'water' || tags.waterway;
 
                     if (isSocial) {
                         feature.properties.layer = 'social';
                         socialLayer.addData(feature);
+                        socialCount++;
                     }
                     if (isEnv) {
                         feature.properties.layer = 'environmental';
                         envLayer.addData(feature);
+                        envCount++;
                     }
                     currentData.features.push(feature);
                 });
 
-                statusBox.textContent = `✅ Success! Found ${currentData.features.length} receptors in current view.`;
+                statusBox.textContent = `✅ Success! Found ${socialCount} social and ${envCount} environmental receptors.`;
                 statusBox.style.background = '#E8F5E9';
                 statusBox.style.color = '#1B5E20';
 
             } catch (error) {
-                statusBox.textContent = '❌ Error fetching data. Try zooming in closer.';
+                statusBox.textContent = '❌ Error fetching data. Try zooming in closer or unchecking some categories.';
                 statusBox.style.background = '#FFEBEE';
                 statusBox.style.color = '#C62828';
-                console.error(error);
+                console.error("Overpass API Error:", error);
             }
         }
 
@@ -211,9 +234,6 @@
             downloadAnchorNode.click();
             downloadAnchorNode.remove();
         }
-
-        // Initial load
-        fetchReceptors();
     </script>
 </body>
 </html>
